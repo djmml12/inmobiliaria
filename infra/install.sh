@@ -245,6 +245,10 @@ info "Compilando @inmobiliaria/shared..."
 pnpm --filter @inmobiliaria/shared build 2>&1 | grep -E "^.*error" || true
 ok "shared compilado"
 
+info "Compilando @inmobiliaria/finance..."
+pnpm --filter @inmobiliaria/finance build 2>&1 | grep -E "^.*error" || true
+ok "finance compilado"
+
 info "Compilando API..."
 pnpm --filter @inmobiliaria/api build 2>&1 | grep -E "^.*error" || true
 ok "API compilada"
