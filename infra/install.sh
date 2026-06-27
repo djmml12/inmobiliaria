@@ -79,7 +79,7 @@ else
 fi
 
 # ─── FASE 5: PostgreSQL 16 ────────────────────────────────────────────────────
-if ! command -v psql &>/dev/null; then
+if ! dpkg -l postgresql-16 2>/dev/null | grep -q '^ii'; then
   info "Instalando PostgreSQL 16..."
   curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
     | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg
@@ -87,7 +87,7 @@ if ! command -v psql &>/dev/null; then
     https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
     > /etc/apt/sources.list.d/pgdg.list
   apt-get update -qq
-  apt-get install -y -qq postgresql-16
+  apt-get install -y postgresql-16
   ok "PostgreSQL 16 instalado"
 else
   ok "PostgreSQL $(psql --version | awk '{print $3}') ya instalado"
@@ -107,8 +107,16 @@ max_wal_senders           = 0
 synchronous_commit        = off
 checkpoint_completion_target = 0.9
 EOF
-systemctl enable postgresql --quiet
-systemctl restart postgresql
+# En Ubuntu 24.04 con PGDG el servicio puede llamarse postgresql o postgresql@16-main
+if systemctl list-unit-files postgresql.service &>/dev/null; then
+  systemctl enable postgresql
+  systemctl restart postgresql
+elif systemctl list-unit-files 'postgresql@*' | grep -q postgresql; then
+  systemctl enable 'postgresql@16-main'
+  systemctl restart 'postgresql@16-main'
+else
+  pg_ctlcluster 16 main start || true
+fi
 ok "PostgreSQL configurado para 512 MB"
 
 # ─── FASE 6: Caddy ────────────────────────────────────────────────────────────
