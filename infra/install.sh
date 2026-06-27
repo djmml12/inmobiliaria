@@ -54,8 +54,8 @@ ok "Paquetes base instalados"
 # ─── FASE 3: Node.js 20 ───────────────────────────────────────────────────────
 if ! command -v node &>/dev/null || [ "$(node --version | cut -d. -f1 | tr -d v)" -lt 20 ]; then
   info "Instalando Node.js 20..."
-  curl -fsSL https://deb.nodesource.com/setup_20.x | bash - -qq
-  apt-get install -y -qq nodejs
+  curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+  apt-get install -y nodejs
   ok "Node.js $(node --version)"
 else
   ok "Node.js $(node --version) ya instalado"
