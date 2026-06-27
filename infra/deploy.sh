@@ -53,8 +53,8 @@ ok "Frontend compilado"
 
 # 4. Migraciones
 info "Aplicando migraciones..."
-cd "$APP_DIR/apps/api"
-DATABASE_URL="$DB_URL" node_modules/.bin/prisma migrate deploy \
+cd "$APP_DIR"
+DATABASE_URL="$DB_URL" pnpm --filter @inmobiliaria/api run prisma:deploy \
   2>&1 | grep -v "^$\|warn\|Tip\|Update" | tail -5
 ok "Migraciones aplicadas"
 

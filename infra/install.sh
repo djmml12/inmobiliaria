@@ -235,32 +235,37 @@ chown "$APP_USER:$APP_USER" "$APP_DIR/uploads"
 # ─── FASE 12: Instalar dependencias y compilar ────────────────────────────────
 info "Instalando dependencias npm (puede tardar 2-3 min)..."
 cd "$APP_DIR"
-pnpm install --frozen-lockfile --silent
+# node-linker=hoisted necesario para que node_modules/.bin funcione correctamente
+grep -q "node-linker=hoisted" "$APP_DIR/.npmrc" 2>/dev/null || \
+  echo "node-linker=hoisted" >> "$APP_DIR/.npmrc"
+pnpm install --frozen-lockfile
 ok "Dependencias instaladas"
 
 info "Compilando @inmobiliaria/shared..."
-pnpm --filter @inmobiliaria/shared build --silent 2>&1 | grep -E "error|Error" || true
+pnpm --filter @inmobiliaria/shared build 2>&1 | grep -E "^.*error" || true
 ok "shared compilado"
 
 info "Compilando API..."
-pnpm --filter @inmobiliaria/api build --silent 2>&1 | grep -E "error|Error" || true
+pnpm --filter @inmobiliaria/api build 2>&1 | grep -E "^.*error" || true
 ok "API compilada"
 
 info "Compilando frontend (puede tardar 1-2 min)..."
 NODE_OPTIONS="--max-old-space-size=300" \
-  pnpm --filter @inmobiliaria/web build --silent 2>&1 | grep -E "error|Error" || true
+  pnpm --filter @inmobiliaria/web build 2>&1 | grep -E "^.*error" || true
 ok "Frontend compilado"
+
+DB_URL="postgresql://${APP_USER}:${DB_PASSWORD}@localhost:5432/inmobiliaria"
 
 # ─── FASE 13: Migraciones y seed ──────────────────────────────────────────────
 info "Aplicando migraciones de base de datos..."
-cd "$APP_DIR/apps/api"
-DATABASE_URL="postgresql://${APP_USER}:${DB_PASSWORD}@localhost:5432/inmobiliaria" \
-  node_modules/.bin/prisma migrate deploy 2>&1 | grep -v "^$\|warn\|Tip\|Update" | tail -5
+cd "$APP_DIR"
+DATABASE_URL="$DB_URL" pnpm --filter @inmobiliaria/api run prisma:deploy \
+  2>&1 | grep -v "^$\|warn\|Tip\|Update" | tail -5
 ok "Migraciones aplicadas"
 
 info "Ejecutando seed inicial (roles y usuario admin)..."
-DATABASE_URL="postgresql://${APP_USER}:${DB_PASSWORD}@localhost:5432/inmobiliaria" \
-  node_modules/.bin/prisma db seed 2>&1 | tail -3 || \
+DATABASE_URL="$DB_URL" pnpm --filter @inmobiliaria/api run prisma:seed \
+  2>&1 | tail -3 || \
   warn "Seed falló — puede que ya existan datos (normal en reinstalaciones)"
 
 cd "$APP_DIR"
