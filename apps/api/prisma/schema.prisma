@@ -1,0 +1,406 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Moneda {
+  GTQ
+  USD
+}
+
+enum TipoImpuesto {
+  IVA
+  TIMBRES
+  EXENTO
+}
+
+enum SistemaAmortizacion {
+  SIN_INTERES
+  FRANCES
+  ALEMAN
+}
+
+enum EstadoLote {
+  DISPONIBLE
+  RESERVADO
+  VENDIDO
+  BLOQUEADO
+}
+
+enum EstadoVenta {
+  ACTIVA
+  CANCELADA
+  COMPLETADA
+}
+
+enum EstadoCuota {
+  PENDIENTE
+  PARCIAL
+  PAGADA
+  VENCIDA
+}
+
+enum MedioPago {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA_CREDITO
+  TARJETA_DEBITO
+  CHEQUE
+}
+
+enum RolNombre {
+  ADMINISTRADOR
+  SUPERVISOR
+  RECEPCIONISTA
+}
+
+model Usuario {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  nombre       String
+  email        String?   @map("email")
+  passwordHash String    @map("password_hash")
+  rol          RolNombre
+  activo       Boolean   @default(true)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  deletedAt    DateTime? @map("deleted_at")
+
+  refreshTokens RefreshToken[]
+  auditoria     Auditoria[]
+
+  @@map("usuarios")
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  usuarioId String   @map("usuario_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("refresh_tokens")
+}
+
+model Proyecto {
+  id           String       @id @default(uuid())
+  nombre       String
+  descripcion  String?
+  ubicacion    String?
+  tipoImpuesto TipoImpuesto @default(IVA) @map("tipo_impuesto")
+  tasaImpuesto Decimal      @map("tasa_impuesto") @db.Decimal(5, 4)
+  moneda       Moneda       @default(GTQ)
+  color        String       @default("#6366f1")
+  activo       Boolean      @default(true)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  deletedAt    DateTime?    @map("deleted_at")
+
+  lotes Lote[]
+
+  @@map("proyectos")
+}
+
+model Lote {
+  id          String     @id @default(uuid())
+  proyectoId  String     @map("proyecto_id")
+  codigo      String
+  area        Decimal    @db.Decimal(10, 2)
+  precioBase  Int        @map("precio_base")
+  moneda      Moneda     @default(GTQ)
+  estado      EstadoLote @default(DISPONIBLE)
+  descripcion String?
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+  deletedAt   DateTime?  @map("deleted_at")
+
+  proyecto Proyecto  @relation(fields: [proyectoId], references: [id])
+  ventas   Venta[]
+  reservas Reserva[]
+
+  @@unique([proyectoId, codigo])
+  @@map("lotes")
+}
+
+model Cliente {
+  id        String    @id @default(uuid())
+  nombre    String
+  apellido  String
+  dpi       String?
+  nit       String?
+  telefono  String?
+  email     String?
+  direccion String?
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  ventas     Venta[]
+  documentos Documento[]
+  reservas   Reserva[]
+
+  @@map("clientes")
+}
+
+model Vendedor {
+  id               String    @id @default(uuid())
+  nombre           String
+  apellido         String
+  telefono         String?
+  email            String?
+  cui              String?
+  fechaNacimiento  DateTime? @map("fecha_nacimiento") @db.Date
+  domicilio        String?
+  comisionPct      Decimal   @map("comision_pct") @db.Decimal(5, 4)
+  activo           Boolean   @default(true)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
+
+  ventas Venta[]
+
+  @@map("vendedores")
+}
+
+model Venta {
+  id             String       @id @default(uuid())
+  loteId         String       @map("lote_id")
+  clienteId      String       @map("cliente_id")
+  vendedorId     String?      @map("vendedor_id")
+  fechaVenta     DateTime     @map("fecha_venta")
+  precioBase     Int          @map("precio_base")
+  tipoImpuesto   TipoImpuesto @map("tipo_impuesto")
+  tasaImpuesto   Decimal      @map("tasa_impuesto") @db.Decimal(5, 4)
+  montoImpuesto  Int          @map("monto_impuesto")
+  precioTotal    Int          @map("precio_total")
+  enganche       Int          @default(0)
+  saldoFinanciar Int          @map("saldo_financiar")
+  comisionPct    Decimal?     @map("comision_pct") @db.Decimal(5, 4)
+  comisionMonto  Int?         @map("comision_monto")
+  comisionPagada Boolean      @default(false) @map("comision_pagada")
+  moneda         Moneda       @default(GTQ)
+  estado         EstadoVenta  @default(ACTIVA)
+  notas          String?
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  deletedAt      DateTime?    @map("deleted_at")
+
+  lote               Lote                @relation(fields: [loteId], references: [id])
+  cliente            Cliente             @relation(fields: [clienteId], references: [id])
+  vendedor           Vendedor?           @relation(fields: [vendedorId], references: [id])
+  planFinanciamiento PlanFinanciamiento?
+  contratos          Contrato[]
+  documentos         Documento[]
+  reserva            Reserva?
+
+  @@map("ventas")
+}
+
+model PlanFinanciamiento {
+  id                String              @id @default(uuid())
+  ventaId           String              @unique @map("venta_id")
+  sistema           SistemaAmortizacion
+  plazoMeses        Int                 @map("plazo_meses")
+  tasaAnual         Decimal             @map("tasa_anual") @db.Decimal(6, 4)
+  fechaPrimeraCuota DateTime            @map("fecha_primera_cuota")
+  diaPago           Int                 @default(1) @map("dia_pago")
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  venta  Venta   @relation(fields: [ventaId], references: [id])
+  cuotas Cuota[]
+
+  @@map("planes_financiamiento")
+}
+
+model Cuota {
+  id               String      @id @default(uuid())
+  planId           String      @map("plan_id")
+  numero           Int
+  fechaVencimiento DateTime    @map("fecha_vencimiento")
+  montoCuota       Int         @map("monto_cuota")
+  capital          Int
+  interes          Int
+  saldoRestante    Int         @map("saldo_restante")
+  estado           EstadoCuota @default(PENDIENTE)
+  montoPagado      Int         @default(0) @map("monto_pagado")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  plan  PlanFinanciamiento @relation(fields: [planId], references: [id])
+  pagos Pago[]
+
+  @@unique([planId, numero])
+  @@map("cuotas")
+}
+
+model Pago {
+  id            String    @id @default(uuid())
+  cuotaId       String    @map("cuota_id")
+  fecha         DateTime
+  monto         Int
+  moneda        Moneda    @default(GTQ)
+  medioPago     MedioPago @map("medio_pago")
+  procesador    String?
+  comisionPct   Decimal?  @map("comision_pct") @db.Decimal(5, 4)
+  comisionMonto Int?      @map("comision_monto")
+  netoRecibido  Int       @map("neto_recibido")
+  notas         String?
+  reversadoPor  String?   @map("reversado_por")
+  createdAt     DateTime  @default(now()) @map("created_at")
+
+  cuota        Cuota         @relation(fields: [cuotaId], references: [id])
+  comprobantes Comprobante[]
+
+  @@map("pagos")
+}
+
+model Comprobante {
+  id         String   @id @default(uuid())
+  pagoId     String   @map("pago_id")
+  numero     String   @unique
+  fecha      DateTime
+  pdfPath    String?  @map("pdf_path")
+  felUuid    String?  @map("fel_uuid")
+  felNumero  String?  @map("fel_numero")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  pago Pago @relation(fields: [pagoId], references: [id])
+
+  @@map("comprobantes")
+}
+
+model Contrato {
+  id        String   @id @default(uuid())
+  ventaId   String   @map("venta_id")
+  numero    String   @unique
+  fecha     DateTime
+  pdfPath   String?  @map("pdf_path")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  venta Venta @relation(fields: [ventaId], references: [id])
+
+  @@map("contratos")
+}
+
+model Documento {
+  id        String   @id @default(uuid())
+  clienteId String?  @map("cliente_id")
+  ventaId   String?  @map("venta_id")
+  nombre    String
+  tipo      String
+  path      String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  cliente Cliente? @relation(fields: [clienteId], references: [id])
+  venta   Venta?   @relation(fields: [ventaId], references: [id])
+
+  @@map("documentos")
+}
+
+enum EstadoReserva {
+  ACTIVA
+  CANCELADA
+  CONVERTIDA
+}
+
+model Reserva {
+  id        String        @id @default(uuid())
+  loteId    String        @map("lote_id")
+  clienteId String        @map("cliente_id")
+  monto     Int // centavos
+  moneda    Moneda        @default(GTQ)
+  fecha     DateTime
+  estado    EstadoReserva @default(ACTIVA)
+  notas     String?
+  ventaId   String?       @unique @map("venta_id")
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+  deletedAt DateTime?     @map("deleted_at")
+
+  lote    Lote    @relation(fields: [loteId], references: [id])
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+  venta   Venta?  @relation(fields: [ventaId], references: [id])
+
+  @@map("reservas")
+}
+
+model Auditoria {
+  id           String   @id @default(uuid())
+  usuarioId    String?  @map("usuario_id")
+  accion       String
+  recurso      String
+  recursoId    String?  @map("recurso_id")
+  datosAntes   Json?    @map("datos_antes")
+  datosDespues Json?    @map("datos_despues")
+  ip           String?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  usuario Usuario? @relation(fields: [usuarioId], references: [id])
+
+  @@map("auditoria")
+}
+
+model Configuracion {
+  id          String   @id @default(uuid())
+  clave       String   @unique
+  valor       String
+  descripcion String?
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@map("configuracion")
+}
+
+enum TipoCalculoImpuesto {
+  PORCENTAJE
+  MONTO_FIJO
+}
+
+enum AplicaEn {
+  PRIMERA_VENTA
+  REVENTA
+  SIEMPRE
+}
+
+model ImpuestoConfig {
+  id          String              @id @default(uuid())
+  nombre      String
+  clave       String              @unique
+  descripcion String?
+  tipo        TipoCalculoImpuesto @default(PORCENTAJE)
+  tasa        Decimal             @db.Decimal(7, 6)
+  montoFijo   Int                 @default(0) @map("monto_fijo")
+  aplicaEn    AplicaEn            @default(SIEMPRE) @map("aplica_en")
+  activo      Boolean             @default(true)
+  createdAt   DateTime            @default(now()) @map("created_at")
+  updatedAt   DateTime            @updatedAt @map("updated_at")
+
+  @@map("impuestos_config")
+}
+
+enum ModoComision {
+  ABSORBIDA
+  RECARGO
+}
+
+model ComisionConfig {
+  id          String       @id @default(uuid())
+  nombre      String
+  clave       String       @unique
+  descripcion String?
+  procesador  String?
+  pct         Decimal      @db.Decimal(7, 6)
+  fijo        Int          @default(0)
+  modo        ModoComision @default(ABSORBIDA)
+  activo      Boolean      @default(true)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
+
+  @@map("comisiones_config")
+}
