@@ -9,6 +9,7 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
+    "types": ["vite/client"],
     "noEmit": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
