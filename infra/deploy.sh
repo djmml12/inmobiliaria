@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 # infra/deploy.sh — Actualizar la aplicación en el servidor
 # Uso: bash /opt/inmobiliaria/infra/deploy.sh  (como root)
+#
+# IMPORTANTE: Los dist (API y web) se compilan en tu PC, no en el servidor.
+# Antes de correr este script ejecuta en tu PC:
+#   pnpm --filter @inmobiliaria/shared build
+#   pnpm --filter @inmobiliaria/finance build
+#   pnpm --filter @inmobiliaria/api build
+#   pnpm --filter @inmobiliaria/web build
+#   scp -r apps/api/dist root@SERVIDOR:/opt/inmobiliaria/apps/api/
+#   scp -r apps/web/dist root@SERVIDOR:/opt/inmobiliaria/apps/web/
 set -euo pipefail
 
 APP_DIR="/opt/inmobiliaria"
@@ -24,7 +33,7 @@ echo ""
 
 DB_URL=$(grep DATABASE_URL "$ENV_FILE" | cut -d= -f2-)
 
-# 1. Actualizar código
+# 1. Actualizar código (solo para tener migraciones y configs nuevas)
 info "Descargando cambios de GitHub..."
 git -C "$APP_DIR" pull --ff-only
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
@@ -32,39 +41,18 @@ ok "Código actualizado"
 
 cd "$APP_DIR"
 
-# 2. Instalar dependencias nuevas (si cambió pnpm-lock.yaml)
-info "Verificando dependencias..."
-pnpm install --frozen-lockfile --silent
-ok "Dependencias OK"
-
-# 3. Recompilar
-info "Compilando shared..."
-pnpm --filter @inmobiliaria/shared build --silent
-ok "shared compilado"
-
-info "Compilando API..."
-pnpm --filter @inmobiliaria/api build --silent
-ok "API compilada"
-
-info "Compilando frontend..."
-NODE_OPTIONS="--max-old-space-size=300" \
-  pnpm --filter @inmobiliaria/web build --silent
-ok "Frontend compilado"
-
-# 4. Migraciones
+# 2. Migraciones (si hay nuevas)
 info "Aplicando migraciones..."
-cd "$APP_DIR"
 DATABASE_URL="$DB_URL" pnpm --filter @inmobiliaria/api run prisma:deploy \
   2>&1 | grep -v "^$\|warn\|Tip\|Update" | tail -5
 ok "Migraciones aplicadas"
 
-cd "$APP_DIR"
-
-# 5. Recargar API (zero-downtime con pm2 reload)
+# 3. Recargar API con el nuevo dist (subido desde la PC)
 info "Recargando API..."
-su - "$APP_USER" -c "pm2 reload inmobiliaria-api" 2>/dev/null
+pm2 reload inmobiliaria-api
 ok "API recargada"
 
 echo ""
-echo -e "${GREEN}Deploy completado.${NC}  Verifica con: su - $APP_USER -c 'pm2 status'"
+echo -e "${GREEN}Deploy completado.${NC}"
+echo "  pm2 status  — para ver el estado de la API"
 echo ""
