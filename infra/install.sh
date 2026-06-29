@@ -253,10 +253,10 @@ info "Compilando API..."
 pnpm --filter @inmobiliaria/api build 2>&1 | grep -E "^.*error" || true
 ok "API compilada"
 
-info "Compilando frontend (puede tardar 1-2 min)..."
-NODE_OPTIONS="--max-old-space-size=300" \
-  pnpm --filter @inmobiliaria/web build 2>&1 | grep -E "^.*error" || true
-ok "Frontend compilado"
+warn "Frontend NO se compila en el servidor (512 MB insuficiente para Vite)."
+warn "Compila en tu PC y sube el dist:"
+warn "  pnpm --filter @inmobiliaria/web build"
+warn "  scp -r apps/web/dist root@SERVIDOR:/opt/inmobiliaria/apps/web/"
 
 DB_URL="postgresql://${APP_USER}:${DB_PASSWORD}@localhost:5432/inmobiliaria"
 
